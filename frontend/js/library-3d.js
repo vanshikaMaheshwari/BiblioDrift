@@ -301,7 +301,9 @@ class BookshelfRenderer3D {
         this.sortCriteria = 'title'; // Default sort
         this.filterCriteria = 'all'; // Default filter
         this.searchQuery = ''; // Default search query
-        this.currentView = 'shelves'; // 'shelves' or 'constellation'
+        this.currentView = 'shelves'; // 'shelves', 'constellation', or 'collections'
+        this.collections = [];
+        this.selectedCollection = null;
         this.constellationSimulation = null; // Store D3 simulation
         this.cleanupCallbacks = [];
         this.isDestroyed = false;
@@ -404,32 +406,69 @@ class BookshelfRenderer3D {
         // View Toggles
         const btnShelves = document.getElementById('view-shelves-btn');
         const btnConstellation = document.getElementById('view-constellation-btn');
+        const btnCollections = document.getElementById('view-collections-btn');
         const containerShelves = document.getElementById('library-shelves');
         const containerConstellation = document.getElementById('constellation-container');
+        const containerCollections = document.getElementById('collections-container');
 
-        if (btnShelves && btnConstellation) {
+        const switchView = (targetView) => {
+            this.currentView = targetView;
+            
+            // Update button styles
+            const btns = [
+                { el: btnShelves, view: 'shelves' },
+                { el: btnConstellation, view: 'constellation' },
+                { el: btnCollections, view: 'collections' }
+            ];
+            
+            btns.forEach(btn => {
+                if (btn.el) {
+                    if (btn.view === targetView) {
+                        btn.el.classList.add('active-view');
+                        btn.el.classList.replace('btn-secondary', 'btn-primary');
+                    } else {
+                        btn.el.classList.remove('active-view');
+                        btn.el.classList.replace('btn-primary', 'btn-secondary');
+                    }
+                }
+            });
+            
+            // Show/hide containers
+            const containers = [
+                { el: containerShelves, view: 'shelves' },
+                { el: containerConstellation, view: 'constellation' },
+                { el: containerCollections, view: 'collections' }
+            ];
+            
+            containers.forEach(c => {
+                if (c.el) {
+                    if (c.view === targetView) {
+                        c.el.classList.remove('hidden');
+                    } else {
+                        c.el.classList.add('hidden');
+                    }
+                }
+            });
+        };
+
+        if (btnShelves) {
             this.addManagedListener(btnShelves, 'click', () => {
-                this.currentView = 'shelves';
-                btnShelves.classList.add('active-view');
-                btnShelves.classList.replace('btn-secondary', 'btn-primary');
-                btnConstellation.classList.remove('active-view');
-                btnConstellation.classList.replace('btn-primary', 'btn-secondary');
-                
-                containerShelves.classList.remove('hidden');
-                containerConstellation.classList.add('hidden');
+                switchView('shelves');
                 this.refreshShelves();
             });
+        }
 
+        if (btnConstellation) {
             this.addManagedListener(btnConstellation, 'click', () => {
-                this.currentView = 'constellation';
-                btnConstellation.classList.add('active-view');
-                btnConstellation.classList.replace('btn-secondary', 'btn-primary');
-                btnShelves.classList.remove('active-view');
-                btnShelves.classList.replace('btn-primary', 'btn-secondary');
-                
-                containerShelves.classList.add('hidden');
-                containerConstellation.classList.remove('hidden');
+                switchView('constellation');
                 this.renderConstellation();
+            });
+        }
+
+        if (btnCollections) {
+            this.addManagedListener(btnCollections, 'click', () => {
+                switchView('collections');
+                this.loadAndRenderCollections();
             });
         }
 
@@ -1426,6 +1465,124 @@ spine.addEventListener('blur', () => this.hideTooltip());
             });
         }
 
+        // Custom Collections Section
+        let collectionsSection = document.getElementById('modal-collections-tagging');
+        if (!collectionsSection) {
+            collectionsSection = document.createElement('div');
+            collectionsSection.id = 'modal-collections-tagging';
+            collectionsSection.className = 'collections-tagging-section';
+            collectionsSection.style.cssText = 'margin-top: 15px; margin-bottom: 15px; padding: 1rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);';
+            const infoPanel = document.querySelector('.book-info-panel');
+            if (infoPanel) {
+                const actions = document.querySelector('.book-actions-section');
+                infoPanel.insertBefore(collectionsSection, actions);
+            }
+        }
+
+        const userObj = typeof parseStoredUser === 'function' ? parseStoredUser() : null;
+        if (!userObj) {
+            collectionsSection.innerHTML = `
+                <h4 style="margin: 0 0 5px 0; color: var(--accent-gold); font-family: 'Playfair Display', serif; font-size: 0.95rem;">Save in Custom Collections</h4>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;"><a href="auth.html" style="color: var(--accent-gold); text-decoration: underline;">Sign in</a> to save this book in custom shelves.</p>
+            `;
+        } else {
+            collectionsSection.innerHTML = `
+                <h4 style="margin: 0 0 8px 0; color: var(--accent-gold); font-family: 'Playfair Display', serif; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-folder-open"></i> Add to Custom Collections
+                </h4>
+                <div id="modal-collections-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto; padding-right: 4px;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Retrieving collections...</span>
+                </div>
+            `;
+            
+            (async () => {
+                try {
+                    const cols = await window.CollectionAPI.getCollections(userObj.id);
+                    const listEl = document.getElementById('modal-collections-list');
+                    if (!listEl) return;
+                    
+                    if (cols.length === 0) {
+                        listEl.innerHTML = `
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">No custom collections created yet. Go to Custom Collections view to create one!</span>
+                        `;
+                        return;
+                    }
+                    
+                    const colsWithItems = await Promise.all(
+                        cols.map(async (c) => {
+                            try {
+                                return await window.CollectionAPI.getCollection(c.id);
+                            } catch (e) {
+                                return { id: c.id, name: c.name, items: [] };
+                            }
+                        })
+                    );
+                    
+                    listEl.innerHTML = '';
+                    colsWithItems.forEach(col => {
+                        const existingItem = col.items.find(item => item.google_books_id === book.id);
+                        const isChecked = !!existingItem;
+                        const label = document.createElement('label');
+                        label.style.cssText = 'display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-main); cursor: pointer; user-select: none; margin-bottom: 4px;';
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = isChecked;
+                        checkbox.style.cssText = 'cursor: pointer; width: 15px; height: 15px; margin: 0;';
+                        
+                        if (isChecked) {
+                            checkbox.dataset.bookId = existingItem.book_id;
+                        }
+                        
+                        checkbox.onchange = async () => {
+                            checkbox.disabled = true;
+                            try {
+                                if (checkbox.checked) {
+                                    const authorStr = Array.isArray(book.authors || book.author) ? (book.authors || book.author).join(', ') : (book.authors || book.author || 'Unknown Author');
+                                    const res = await window.CollectionAPI.addBookToCollection(
+                                        col.id,
+                                        userObj.id,
+                                        book.id,
+                                        book.title,
+                                        authorStr,
+                                        book.cover || book.thumbnail || ''
+                                    );
+                                    checkbox.dataset.bookId = res.item.book_id;
+                                    showToast(`Added to "${col.name}"`, 'success');
+                                } else {
+                                    const bookId = checkbox.dataset.bookId;
+                                    if (bookId) {
+                                        await window.CollectionAPI.removeBookFromCollection(col.id, bookId);
+                                        delete checkbox.dataset.bookId;
+                                        showToast(`Removed from "${col.name}"`, 'success');
+                                    }
+                                }
+                            } catch (err) {
+                                checkbox.checked = !checkbox.checked; // Revert
+                                showToast(err.message, 'error');
+                            } finally {
+                                checkbox.disabled = false;
+                            }
+                        };
+                        
+                        label.appendChild(checkbox);
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.textContent = col.name;
+                        label.appendChild(textSpan);
+                        
+                        listEl.appendChild(label);
+                    });
+                } catch (e) {
+                    console.error('Modal collections load failed', e);
+                    const listEl = document.getElementById('modal-collections-list');
+                    if (listEl) {
+                        listEl.innerHTML = `<span style="font-size: 0.8rem; color: #e53935;">Failed to load collections.</span>`;
+                    }
+                }
+            })();
+        }
+
         // Show modal and manage focus
         if (this.modal) {
             this.modal.classList.add('active');
@@ -1953,6 +2110,325 @@ spine.addEventListener('blur', () => this.hideTooltip());
             if (!event.active) self.constellationSimulation.alphaTarget(0);
             event.subject.fx = null;
             event.subject.fy = null;
+        }
+    }
+
+    async loadAndRenderCollections() {
+        const gridContainer = document.getElementById('collections-grid');
+        if (!gridContainer) return;
+
+        const user = typeof parseStoredUser === 'function' ? parseStoredUser() : null;
+        if (!user) {
+            gridContainer.innerHTML = `
+                <div class="empty-state" style="grid-column: 1/-1; text-align: center; padding: 4rem 1rem;">
+                    <i class="fa-solid fa-user-lock" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 1rem;"></i>
+                    <p style="font-size: 1.2rem; color: var(--text-main); margin-bottom: 1.5rem;">Join us to organize your books in custom collections.</p>
+                    <a href="auth.html" class="btn-primary" style="text-decoration: none; padding: 0.6rem 1.5rem; border-radius: 20px; display: inline-flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-key"></i> Sign In to Account
+                    </a>
+                </div>
+            `;
+            const detailView = document.getElementById('collection-detail-view');
+            const gridView = document.getElementById('collections-grid-view');
+            if (detailView) detailView.classList.add('hidden');
+            if (gridView) gridView.classList.remove('hidden');
+            return;
+        }
+
+        gridContainer.innerHTML = `
+            <div style="grid-column: 1/-1; text-align: center; padding: 3rem;">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; color: var(--accent-gold);"></i>
+                <p style="margin-top: 1rem; color: var(--text-muted);">Unfolding your collections...</p>
+            </div>
+        `;
+
+        try {
+            const collections = await window.CollectionAPI.getCollections(user.id);
+            this.collections = collections;
+            this.renderCollectionsGrid();
+        } catch (err) {
+            console.error('Failed to load collections', err);
+            gridContainer.innerHTML = `
+                <div class="empty-state" style="grid-column: 1/-1; text-align: center; padding: 3rem;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 2.5rem; color: #e53935; margin-bottom: 1rem;"></i>
+                    <p style="color: var(--text-main);">Failed to retrieve custom collections.</p>
+                    <button class="btn-secondary" onclick="window.bookshelfRenderer.loadAndRenderCollections()" style="margin-top: 1rem; border-radius: 20px;">
+                        <i class="fa-solid fa-rotate-right"></i> Try Again
+                    </button>
+                </div>
+            `;
+        }
+    }
+
+    renderCollectionsGrid() {
+        const gridContainer = document.getElementById('collections-grid');
+        if (!gridContainer) return;
+
+        gridContainer.innerHTML = '';
+
+        // Dash-bordered "Create New" card
+        const createCard = document.createElement('div');
+        createCard.className = 'collection-folder-card';
+        createCard.style.cssText = 'border: 2px dashed var(--glass-border); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 180px; cursor: pointer; border-radius: 16px; padding: 1.5rem; transition: all 0.3s ease; text-align: center; background: none; box-sizing: border-box;';
+        createCard.innerHTML = `
+            <i class="fa-solid fa-folder-plus" style="font-size: 2.5rem; color: var(--text-muted); margin-bottom: 1rem; transition: transform 0.3s ease;"></i>
+            <span style="font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--text-main); font-weight: bold;">New Collection</span>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem; margin-bottom: 0;">Organize a new theme shelf</p>
+        `;
+        createCard.onmouseover = () => {
+            createCard.style.borderColor = 'var(--accent-gold)';
+            createCard.style.background = 'var(--glass-bg)';
+            createCard.querySelector('i').style.transform = 'scale(1.1)';
+        };
+        createCard.onmouseout = () => {
+            createCard.style.borderColor = 'var(--glass-border)';
+            createCard.style.background = 'none';
+            createCard.querySelector('i').style.transform = 'scale(1)';
+        };
+        createCard.onclick = () => this.openCollectionModal();
+        gridContainer.appendChild(createCard);
+
+        if (this.collections.length === 0) {
+            return;
+        }
+
+        this.collections.forEach(col => {
+            const card = document.createElement('div');
+            card.className = 'collection-folder-card';
+            card.style.cssText = 'background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 16px; padding: 1.5rem; cursor: pointer; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column; justify-content: space-between; min-height: 180px; box-sizing: border-box; position: relative; overflow: hidden;';
+            
+            const badgeBg = col.is_public ? 'var(--accent-gold)' : 'var(--text-muted)';
+            const badgeColor = col.is_public ? '#000' : '#fff';
+            
+            card.innerHTML = `
+                <div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+                        <i class="fa-solid fa-folder" class="collection-icon-large" style="font-size: 2.5rem; color: var(--accent-gold); transition: transform 0.3s ease;"></i>
+                        <span style="background: ${badgeBg}; color: ${badgeColor}; padding: 1px 6px; border-radius: 6px; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">${col.is_public ? 'Public' : 'Private'}</span>
+                    </div>
+                    <h3 style="font-family: 'Playfair Display', serif; font-size: 1.3rem; margin: 0 0 0.5rem 0; color: var(--text-main); font-weight: bold;">${col.name}</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; line-height: 1.4; margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${col.description || 'No description provided.'}</p>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid rgba(255, 255, 255, 0.05);">
+                    <span style="font-size: 0.8rem; color: var(--text-muted); font-weight: 500;"><i class="fa-solid fa-book" style="margin-right: 4px;"></i> ${col.item_count} book${col.item_count !== 1 ? 's' : ''}</span>
+                    <span style="font-size: 0.8rem; color: var(--accent-gold); font-weight: bold; display: flex; align-items: center; gap: 4px;">Open <i class="fa-solid fa-chevron-right" style="font-size: 0.7rem;"></i></span>
+                </div>
+            `;
+
+            card.onmouseover = () => {
+                card.style.transform = 'translateY(-5px) scale(1.02)';
+                card.style.boxShadow = '0 15px 30px rgba(0, 0, 0, 0.3)';
+                card.style.borderColor = 'var(--accent-gold)';
+                card.querySelector('.fa-folder').style.transform = 'rotate(-10deg) scale(1.1)';
+            };
+            card.onmouseout = () => {
+                card.style.transform = 'none';
+                card.style.boxShadow = 'none';
+                card.style.borderColor = 'var(--glass-border)';
+                card.querySelector('.fa-folder').style.transform = 'none';
+            };
+
+            card.onclick = () => this.openCollectionDetail(col.id);
+
+            gridContainer.appendChild(card);
+        });
+    }
+
+    async openCollectionDetail(collectionId) {
+        const detailView = document.getElementById('collection-detail-view');
+        const gridView = document.getElementById('collections-grid-view');
+        const booksRow = document.getElementById('collection-books-row-3d');
+
+        if (!detailView || !gridView || !booksRow) return;
+
+        gridView.classList.add('hidden');
+        detailView.classList.remove('hidden');
+
+        booksRow.innerHTML = `
+            <div style="text-align: center; width: 100%; padding: 4rem;">
+                <i class="fa-solid fa-spinner fa-spin" style="font-size: 2rem; color: var(--accent-gold);"></i>
+                <p style="margin-top: 1rem; color: var(--text-muted);">Browsing collection items...</p>
+            </div>
+        `;
+
+        try {
+            const collection = await window.CollectionAPI.getCollection(collectionId);
+            this.selectedCollection = collection;
+
+            // Populate header
+            document.getElementById('selected-collection-name').textContent = collection.name;
+            document.getElementById('selected-collection-desc').textContent = collection.description || 'No description provided.';
+            
+            const statusBadge = document.getElementById('selected-collection-status');
+            if (statusBadge) {
+                statusBadge.textContent = collection.is_public ? 'Public' : 'Private';
+                statusBadge.style.background = collection.is_public ? 'var(--accent-gold)' : 'var(--text-muted)';
+                statusBadge.style.color = collection.is_public ? '#000' : '#fff';
+            }
+
+            // Bind actions
+            document.getElementById('back-to-collections-btn').onclick = () => this.closeCollectionDetail();
+            document.getElementById('edit-collection-btn').onclick = () => this.openCollectionModal(collection);
+            document.getElementById('delete-collection-btn').onclick = () => this.deleteCollection(collection.id);
+
+            // Render books as 3D book spines
+            booksRow.innerHTML = '';
+            const items = collection.items || [];
+            if (items.length === 0) {
+                booksRow.innerHTML = `
+                    <div style="text-align: center; width: 100%; padding: 5rem 1rem; color: var(--text-muted);">
+                        <i class="fa-solid fa-book-open" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                        <p style="font-size: 1.1rem; margin: 0;">This collection is completely empty.</p>
+                        <p style="font-size: 0.85rem; opacity: 0.8; margin-top: 0.5rem;">Explore books and add them to this collection!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            items.forEach((item, index) => {
+                // Map CollectionItem schema back to 3D Spine-friendly schema
+                const bookData = {
+                    id: item.google_books_id,
+                    title: item.title,
+                    author: item.authors || 'Unknown Author',
+                    cover: item.thumbnail || '',
+                    description: 'Added on ' + new Date(item.added_at).toLocaleDateString(),
+                    rating: 4.5,
+                    ratingCount: 1,
+                    categories: ['Collection Book'],
+                    spineColor: '#3e2723',
+                    textColor: '#fff',
+                    progress: 0,
+                    shelfType: 'collection',
+                    reviews: []
+                };
+
+                const spine = this.createBookSpine(bookData, index, 'collection');
+                
+                // Add a hover option or delete handler specifically for collections
+                const deleteIcon = document.createElement('div');
+                deleteIcon.className = 'spine-finished-badge';
+                deleteIcon.style.cssText = 'background: #e53935; color: white; top: auto; bottom: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%;';
+                deleteIcon.innerHTML = '<i class="fa-solid fa-trash-can" style="color: white; font-size: 0.8rem;"></i>';
+                deleteIcon.title = 'Remove from Collection';
+                deleteIcon.onclick = async (e) => {
+                    e.stopPropagation(); // Prevent opening modal
+                    if (confirm(`Remove "${bookData.title}" from this collection?`)) {
+                        try {
+                            await window.CollectionAPI.removeBookFromCollection(collectionId, item.book_id);
+                            showToast(`Removed "${bookData.title}" successfully`, 'success');
+                            this.openCollectionDetail(collectionId); // Reload
+                        } catch (err) {
+                            showToast(err.message, 'error');
+                        }
+                    }
+                };
+                spine.appendChild(deleteIcon);
+
+                booksRow.appendChild(spine);
+            });
+
+        } catch (err) {
+            console.error('Failed to load collection details', err);
+            booksRow.innerHTML = `
+                <div style="text-align: center; width: 100%; padding: 4rem;">
+                    <i class="fa-solid fa-triangle-exclamation" style="font-size: 2.5rem; color: #e53935;"></i>
+                    <p style="margin-top: 1rem; color: var(--text-main);">Failed to load collection books.</p>
+                </div>
+            `;
+        }
+    }
+
+    closeCollectionDetail() {
+        const detailView = document.getElementById('collection-detail-view');
+        const gridView = document.getElementById('collections-grid-view');
+        if (detailView && gridView) {
+            detailView.classList.add('hidden');
+            gridView.classList.remove('hidden');
+            this.loadAndRenderCollections(); // Refresh counts
+        }
+    }
+
+    openCollectionModal(collection = null) {
+        const modal = document.getElementById('collection-modal');
+        const titleEl = document.getElementById('collection-modal-title');
+        const form = document.getElementById('collection-form');
+        const nameInput = document.getElementById('collection-name-input');
+        const descInput = document.getElementById('collection-desc-input');
+        const publicInput = document.getElementById('collection-public-input');
+
+        if (!modal || !form || !nameInput) return;
+
+        if (collection) {
+            titleEl.textContent = 'Edit Collection';
+            nameInput.value = collection.name;
+            descInput.value = collection.description || '';
+            publicInput.checked = collection.is_public;
+            form.dataset.collectionId = collection.id;
+        } else {
+            titleEl.textContent = 'Create Collection';
+            nameInput.value = '';
+            descInput.value = '';
+            publicInput.checked = false;
+            delete form.dataset.collectionId;
+        }
+
+        modal.showModal();
+
+        // Close handlers
+        document.getElementById('closeCollectionModalBtn').onclick = () => modal.close();
+        
+        // Save handler
+        form.onsubmit = async (e) => {
+            e.preventDefault();
+            const user = parseStoredUser();
+            if (!user) {
+                showToast('Please sign in to perform this action', 'error');
+                modal.close();
+                return;
+            }
+
+            const name = nameInput.value.trim();
+            const desc = descInput.value.trim();
+            const isPublic = publicInput.checked;
+            const collectionId = form.dataset.collectionId;
+
+            const submitBtn = document.getElementById('collection-submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+            try {
+                if (collectionId) {
+                    await window.CollectionAPI.updateCollection(collectionId, name, desc, isPublic);
+                    showToast('Collection updated successfully', 'success');
+                } else {
+                    await window.CollectionAPI.createCollection(user.id, name, desc, isPublic);
+                    showToast('Collection created successfully', 'success');
+                }
+                modal.close();
+                if (collectionId) {
+                    this.openCollectionDetail(collectionId);
+                } else {
+                    this.loadAndRenderCollections();
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Save Collection';
+            }
+        };
+    }
+
+    async deleteCollection(collectionId) {
+        if (confirm('Are you sure you want to delete this collection? This action cannot be undone.')) {
+            try {
+                await window.CollectionAPI.deleteCollection(collectionId);
+                showToast('Collection deleted successfully', 'success');
+                this.closeCollectionDetail();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
         }
     }
 

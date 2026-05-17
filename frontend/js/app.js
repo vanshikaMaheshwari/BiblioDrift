@@ -115,6 +115,118 @@ async function loadConfig() {
         console.warn('Failed to load backend config', e);
     }
 }
+
+const CollectionAPI = {
+    getHeaders() {
+        const headers = { 'Content-Type': 'application/json' };
+        const csrf = getCookie('csrf_access_token');
+        if (csrf) {
+            headers['X-CSRF-TOKEN'] = csrf;
+        }
+        return headers;
+    },
+    async createCollection(userId, name, description = '', isPublic = false) {
+        const res = await fetch(`${MOOD_API_BASE}/api/v1/collections`, {
+            method: 'POST',
+            headers: this.getHeaders(),
+            credentials: 'include',
+            body: JSON.stringify({ user_id: parseInt(userId), name, description, is_public: isPublic })
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+        return await res.json();
+    },
+    async getCollections(userId) {
+        const res = await fetch(`${MOOD_API_BASE}/api/v1/collections?user_id=${userId}`, {
+            method: 'GET',
+            headers: this.getHeaders(),
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        return data.collections || [];
+    },
+    async getCollection(id) {
+        const res = await fetch(`${MOOD_API_BASE}/api/v1/collections/${id}`, {
+            method: 'GET',
+            headers: this.getHeaders(),
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        return data.collection;
+    },
+    async updateCollection(id, name, description, isPublic) {
+        const payload = {};
+        if (name !== undefined) payload.name = name;
+        if (description !== undefined) payload.description = description;
+        if (isPublic !== undefined) payload.is_public = isPublic;
+
+        const res = await fetch(`${MOOD_API_BASE}/api/v1/collections/${id}`, {
+            method: 'PUT',
+            headers: this.getHeaders(),
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+        return await res.json();
+    },
+    async deleteCollection(id) {
+        const res = await fetch(`${MOOD_API_BASE}/api/v1/collections/${id}`, {
+            method: 'DELETE',
+            headers: this.getHeaders(),
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+        return await res.json();
+    },
+    async addBookToCollection(collectionId, userId, bookId, title, authors = '', thumbnail = '') {
+        const res = await fetch(`${MOOD_API_BASE}/api/v1/collections/${collectionId}/books`, {
+            method: 'POST',
+            headers: this.getHeaders(),
+            credentials: 'include',
+            body: JSON.stringify({
+                user_id: parseInt(userId),
+                google_books_id: bookId,
+                title: title,
+                authors: Array.isArray(authors) ? authors.join(', ') : authors,
+                thumbnail: thumbnail
+            })
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+        return await res.json();
+    },
+    async removeBookFromCollection(collectionId, bookId) {
+        const res = await fetch(`${MOOD_API_BASE}/api/v1/collections/${collectionId}/books/${bookId}`, {
+            method: 'DELETE',
+            headers: this.getHeaders(),
+            credentials: 'include'
+        });
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `HTTP ${res.status}`);
+        }
+        return await res.json();
+    }
+};
+window.CollectionAPI = CollectionAPI;
 import { saveBookOffline, removeOfflineBook, db } from './db.js';
 
 // Example click handler for your custom "Save for Offline" icon
@@ -892,6 +1004,129 @@ class BookRenderer {
                 }
             };
         });
+
+        // Custom Collections Section
+        let collectionsSection = document.getElementById('modal-discovery-collections-tagging');
+        if (!collectionsSection) {
+            collectionsSection = document.createElement('div');
+            collectionsSection.id = 'modal-discovery-collections-tagging';
+            collectionsSection.className = 'collections-tagging-section';
+            collectionsSection.style.cssText = 'margin-top: 15px; margin-bottom: 15px; padding: 1rem; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);';
+        }
+        
+        if (actions) {
+            const existing = actions.parentNode.querySelector('#modal-discovery-collections-tagging');
+            if (existing) existing.remove();
+            actions.parentNode.insertBefore(collectionsSection, actions);
+        } else if (modalBody) {
+            const existing = modalBody.querySelector('#modal-discovery-collections-tagging');
+            if (existing) existing.remove();
+            modalBody.appendChild(collectionsSection);
+        }
+
+        const userObj = typeof parseStoredUser === 'function' ? parseStoredUser() : null;
+        if (!userObj) {
+            collectionsSection.innerHTML = `
+                <h4 style="margin: 0 0 5px 0; color: var(--accent-gold); font-family: 'Playfair Display', serif; font-size: 0.95rem;">Save in Custom Collections</h4>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;"><a href="auth.html" style="color: var(--accent-gold); text-decoration: underline;">Sign in</a> to save this book in custom shelves.</p>
+            `;
+        } else {
+            collectionsSection.innerHTML = `
+                <h4 style="margin: 0 0 8px 0; color: var(--accent-gold); font-family: 'Playfair Display', serif; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-folder-open"></i> Add to Custom Collections
+                </h4>
+                <div id="modal-discovery-collections-list" style="display: flex; flex-direction: column; gap: 6px; max-height: 120px; overflow-y: auto; padding-right: 4px;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Retrieving collections...</span>
+                </div>
+            `;
+            
+            (async () => {
+                try {
+                    const cols = await window.CollectionAPI.getCollections(userObj.id);
+                    const listEl = document.getElementById('modal-discovery-collections-list');
+                    if (!listEl) return;
+                    
+                    if (cols.length === 0) {
+                        listEl.innerHTML = `
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">No custom collections created yet. Go to Custom Collections view to create one!</span>
+                        `;
+                        return;
+                    }
+                    
+                    const colsWithItems = await Promise.all(
+                        cols.map(async (c) => {
+                            try {
+                                return await window.CollectionAPI.getCollection(c.id);
+                            } catch (e) {
+                                return { id: c.id, name: c.name, items: [] };
+                            }
+                        })
+                    );
+                    
+                    listEl.innerHTML = '';
+                    colsWithItems.forEach(col => {
+                        const existingItem = col.items.find(item => item.google_books_id === book.id);
+                        const isChecked = !!existingItem;
+                        const label = document.createElement('label');
+                        label.style.cssText = 'display: flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--text-main); cursor: pointer; user-select: none; margin-bottom: 4px;';
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.checked = isChecked;
+                        checkbox.style.cssText = 'cursor: pointer; width: 15px; height: 15px; margin: 0;';
+                        
+                        if (isChecked) {
+                            checkbox.dataset.bookId = existingItem.book_id;
+                        }
+                        
+                        checkbox.onchange = async () => {
+                            checkbox.disabled = true;
+                            try {
+                                if (checkbox.checked) {
+                                    const authorStr = Array.isArray(book.volumeInfo.authors) ? book.volumeInfo.authors.join(', ') : (book.volumeInfo.authors || 'Unknown Author');
+                                    const res = await window.CollectionAPI.addBookToCollection(
+                                        col.id,
+                                        userObj.id,
+                                        book.id,
+                                        book.volumeInfo.title,
+                                        authorStr,
+                                        book.volumeInfo.imageLinks?.thumbnail || ''
+                                    );
+                                    checkbox.dataset.bookId = res.item.book_id;
+                                    showToast(`Added to "${col.name}"`, 'success');
+                                } else {
+                                    const bookId = checkbox.dataset.bookId;
+                                    if (bookId) {
+                                        await window.CollectionAPI.removeBookFromCollection(col.id, bookId);
+                                        delete checkbox.dataset.bookId;
+                                        showToast(`Removed from "${col.name}"`, 'success');
+                                    }
+                                }
+                            } catch (err) {
+                                checkbox.checked = !checkbox.checked; // Revert
+                                showToast(err.message, 'error');
+                            } finally {
+                                checkbox.disabled = false;
+                            }
+                        };
+                        
+                        label.appendChild(checkbox);
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.textContent = col.name;
+                        label.appendChild(textSpan);
+                        
+                        listEl.appendChild(label);
+                    });
+                } catch (e) {
+                    console.error('Modal collections load failed', e);
+                    const listEl = document.getElementById('modal-discovery-collections-list');
+                    if (listEl) {
+                        listEl.innerHTML = `<span style="font-size: 0.8rem; color: #e53935;">Failed to load collections.</span>`;
+                    }
+                }
+            })();
+        }
     }
 
     getMoodIcon(mood) {
