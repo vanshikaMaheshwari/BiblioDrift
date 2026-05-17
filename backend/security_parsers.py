@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 # Configuration for request size limits
 MAX_JSON_SIZE_BYTES = 1_000_000  # 1 MB max JSON payload
 MAX_NESTED_DEPTH = 50  # Prevent deeply nested JSON attacks
+DEFAULT_ALLOWED_CONTENT_TYPES = ('application/json', 'application/x-www-form-urlencoded')
 
 
 class JSONParseError(ValueError):
@@ -32,7 +33,7 @@ def validate_content_type(allowed_types: Optional[list] = None) -> Tuple[bool, O
         Tuple[bool, Optional[str]]: (is_valid, error_message)
     """
     if allowed_types is None:
-        allowed_types = ['application/json', 'application/x-www-form-urlencoded']
+        allowed_types = list(DEFAULT_ALLOWED_CONTENT_TYPES)
 
     normalized_allowed_types = [content_type.strip().lower() for content_type in allowed_types]
     
@@ -58,7 +59,8 @@ def safe_get_json(
     silent: bool = False,
     max_size: int = MAX_JSON_SIZE_BYTES,
     validate_type: bool = True,
-    require_object: bool = True
+    require_object: bool = True,
+    allowed_types: Optional[list] = None
 ) -> Tuple[bool, Optional[Any], Optional[str]]:
     """
     Safely parse JSON from request body with size and depth limits.
@@ -69,6 +71,7 @@ def safe_get_json(
         max_size: Maximum allowed request body size in bytes (default: 1MB)
         validate_type: Validate Content-Type header (default: True)
         require_object: Require the parsed JSON root to be an object/dict (default: True)
+        allowed_types: Explicit Content-Type allowlist to use during validation
     
     Returns:
         Tuple[bool, Optional[Dict], Optional[str]]: (success, parsed_data, error_message)
@@ -85,7 +88,7 @@ def safe_get_json(
     try:
         # Step 1: Content-Type validation (skip if force=True)
         if validate_type and not force:
-            is_valid, type_error = validate_content_type()
+            is_valid, type_error = validate_content_type(allowed_types=allowed_types)
             if not is_valid:
                 logger.warning(f"Content-Type validation failed: {type_error}")
                 return False, None, type_error
