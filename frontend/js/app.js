@@ -1420,6 +1420,9 @@ class LibraryManager {
         if (IS_DEV) {
             console.log(`Added ${book.volumeInfo.title} to ${shelf}`);
         }
+        if (typeof window.logReadingActivity === 'function') {
+            window.logReadingActivity('add', `Added "${book.volumeInfo.title}" to ${shelf}`);
+        }
 
         // 2. Update Backend
         const user = this.getUser();
@@ -1471,6 +1474,9 @@ class LibraryManager {
             this.library[shelf] = this.library[shelf].filter(b => b.id !== id);
             this.library.finished.push(book);
             showToast(`Congrats! You finished ${book.volumeInfo.title}!`, "success");
+            if (typeof window.logReadingActivity === 'function') {
+                window.logReadingActivity('finish', `Finished reading "${book.volumeInfo.title}"`);
+            }
         }
 
         this.saveLocally();
