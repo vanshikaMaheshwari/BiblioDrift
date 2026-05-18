@@ -2791,12 +2791,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             { type: 'query', query: 'subject:mystery atmosphere', elementId: 'row-rainy' },
             { type: 'query', query: 'authors:arundhati roy|subject:india', elementId: 'row-indian' },
             { type: 'query', query: 'subject:classic fiction', elementId: 'row-classics' },
-            {
-                type: 'category',
-                elementId: 'row-dark-academia',
-                category: 'Dark Academia',
-                vibeDescription: 'gothic, intellectual, melancholic, and candlelit stories set around obsession, old libraries, secret societies, and campus unease',
-                fallbackQuery: 'subject:gothic fiction subject:campus'
+           {
+                 type: 'query',
+                 query: 'subject:gothic fiction subject:dark academia subject:campus',
+                 elementId: 'row-dark-academia',
+                 vibeDescription: 'gothic, intellectual, melancholic, and candlelit',
+                 fallbackQuery: 'subject:gothic fiction subject:campus'
             },
             { type: 'query', query: 'subject:fiction', elementId: 'row-fiction' }
         ];
