@@ -135,9 +135,118 @@ const THEMES = {
             "--theme-border": "#4e342e",
             "--theme-pill-bg": "#3e2723"
         }
+    },
+    "space": {
+        light: {
+            "--theme-bg": "#f3e8ff",
+            "--theme-surface": "#ffffff",
+            "--theme-accent": "#7b2cbf",
+            "--theme-accent-light": "#9d4edd",
+            "--theme-text": "#240046",
+            "--theme-text-muted": "#5a189a",
+            "--theme-border": "#e0aaff",
+            "--theme-pill-bg": "#faf5ff"
+        },
+        dark: {
+            "--theme-bg": "#10002b",
+            "--theme-surface": "#240046",
+            "--theme-accent": "#9d4edd",
+            "--theme-accent-light": "#c77dff",
+            "--theme-text": "#e0aaff",
+            "--theme-text-muted": "#9d4edd",
+            "--theme-border": "#3c096c",
+            "--theme-pill-bg": "#240046"
+        }
+    },
+    "anime": {
+        light: {
+            "--theme-bg": "#fdf4ff",
+            "--theme-surface": "#ffffff",
+            "--theme-accent": "#d946ef",
+            "--theme-accent-light": "#e879f9",
+            "--theme-text": "#4a044e",
+            "--theme-text-muted": "#86198f",
+            "--theme-border": "#f5d0fe",
+            "--theme-pill-bg": "#faf5ff"
+        },
+        dark: {
+            "--theme-bg": "#2e1026",
+            "--theme-surface": "#4a044e",
+            "--theme-accent": "#e879f9",
+            "--theme-accent-light": "#f0abfc",
+            "--theme-text": "#fae8ff",
+            "--theme-text-muted": "#f5d0fe",
+            "--theme-border": "#701a75",
+            "--theme-pill-bg": "#4a044e"
+        }
+    },
+    "train": {
+        light: {
+            "--theme-bg": "#e0e7ff",
+            "--theme-surface": "#ffffff",
+            "--theme-accent": "#4f46e5",
+            "--theme-accent-light": "#6366f1",
+            "--theme-text": "#1e1b4b",
+            "--theme-text-muted": "#3730a3",
+            "--theme-border": "#c7d2fe",
+            "--theme-pill-bg": "#eef2ff"
+        },
+        dark: {
+            "--theme-bg": "#0f172a",
+            "--theme-surface": "#1e293b",
+            "--theme-accent": "#fbbf24",
+            "--theme-accent-light": "#fcd34d",
+            "--theme-text": "#f8fafc",
+            "--theme-text-muted": "#94a3b8",
+            "--theme-border": "#334155",
+            "--theme-pill-bg": "#1e293b"
+        }
+    },
+    "forest": {
+        light: {
+            "--theme-bg": "#ecfdf5",
+            "--theme-surface": "#ffffff",
+            "--theme-accent": "#059669",
+            "--theme-accent-light": "#10b981",
+            "--theme-text": "#022c22",
+            "--theme-text-muted": "#065f46",
+            "--theme-border": "#a7f3d0",
+            "--theme-pill-bg": "#f0fdf4"
+        },
+        dark: {
+            "--theme-bg": "#022c22",
+            "--theme-surface": "#064e3b",
+            "--theme-accent": "#34d399",
+            "--theme-accent-light": "#6ee7b7",
+            "--theme-text": "#ecfdf5",
+            "--theme-text-muted": "#a7f3d0",
+            "--theme-border": "#065f46",
+            "--theme-pill-bg": "#064e3b"
+        }
+    },
+    "magic": {
+        light: {
+            "--theme-bg": "#f0fdfa",
+            "--theme-surface": "#ffffff",
+            "--theme-accent": "#0d9488",
+            "--theme-accent-light": "#14b8a6",
+            "--theme-text": "#134e4a",
+            "--theme-text-muted": "#0f766e",
+            "--theme-border": "#ccfbf1",
+            "--theme-pill-bg": "#f0fdfa"
+        },
+        dark: {
+            "--theme-bg": "#134e4a",
+            "--theme-surface": "#0f766e",
+            "--theme-accent": "#22d3ee",
+            "--theme-accent-light": "#67e8f9",
+            "--theme-text": "#f0fdfa",
+            "--theme-text-muted": "#ccfbf1",
+            "--theme-border": "#115e59",
+            "--theme-pill-bg": "#0f766e"
+        }
     }
 };
-
 /**
  * Applies a specific theme to the UI by setting CSS variables on the root element.
  * @param {string} themeName - The key of the theme to apply.

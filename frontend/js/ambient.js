@@ -258,6 +258,7 @@ class AmbientManager {
         if (this.spaceToggle) {
             this.spaceToggle.addEventListener('change', () => {
                 if (this.spaceToggle.checked) {
+                    if (typeof setTheme === 'function') setTheme('space');
                     this.spaceAudio.currentTime = 0;
                     this.spaceAudio.play().then(() => {
                         this.saveAudioState('space', true);
@@ -272,6 +273,7 @@ class AmbientManager {
         if (this.trainToggle) {
             this.trainToggle.addEventListener('change', () => {
                 if (this.trainToggle.checked) {
+                    if (typeof setTheme === 'function') setTheme('train');
                     this.trainAudio.currentTime = 0;
                     this.trainAudio.play().then(() => {
                         this.saveAudioState('train', true);
@@ -286,6 +288,7 @@ class AmbientManager {
         if (this.forestToggle) {
             this.forestToggle.addEventListener('change', () => {
                 if (this.forestToggle.checked) {
+                    if (typeof setTheme === 'function') setTheme('forest');
                     this.forestAudio.currentTime = 0;
                     this.forestAudio.play().then(() => {
                         this.saveAudioState('forest', true);
@@ -300,6 +303,7 @@ class AmbientManager {
         if (this.magicToggle) {
             this.magicToggle.addEventListener('change', () => {
                 if (this.magicToggle.checked) {
+                    if (typeof setTheme === 'function') setTheme('magic');
                     this.magicAudio.currentTime = 0;
                     this.magicAudio.play().then(() => {
                         this.saveAudioState('magic', true);
@@ -314,6 +318,7 @@ class AmbientManager {
         if (this.animeToggle) {
             this.animeToggle.addEventListener('change', () => {
                 if (this.animeToggle.checked) {
+                    if (typeof setTheme === 'function') setTheme('anime');
                     this.animeAudio.currentTime = 0;
                     this.animeAudio.play().then(() => {
                         this.saveAudioState('anime', true);
